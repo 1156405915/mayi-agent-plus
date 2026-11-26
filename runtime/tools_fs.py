@@ -224,7 +224,7 @@ class WorkspaceFS:
         target = self._resolve_read_path(path)
         if target.suffix.lower() in {".pdf", ".docx", ".doc", ".xlsx", ".xls"}:
             raise ValueError(
-                f"`{path}` 是二进制办公文档，请先调用 `ingest_documents` 并读取 `.workspace/parsed/` 下对应的 `full.md`。"
+                f"`{path}` 是二进制办公文档，请先调用 `ingest_documents`，随后使用 `read_parsed_pages` 或读取 `.workspace/parsed/` 下对应的 `full.md`。"
             )
         text = target.read_text(encoding="utf-8", errors="replace")
         all_lines = text.splitlines()
@@ -242,6 +242,86 @@ class WorkspaceFS:
             "has_more": e < total,
             "next_start_line": e + 1 if e < total else None,
             "content": "\n".join(window),
+        }
+
+    def read_parsed_pages(self, doc_path: str, start_page: int = 1, end_page: int = 5) -> dict[str, Any]:
+        """
+        按物理页码或工作表编号 `[start_page, end_page]`（单次最多连续 15 页）直接读取已标准化文档的对应页面内容。
+        `doc_path` 既可传 `.workspace/parsed/<目录>/full.md`，也可直接传原始相对路径（如 `'招标文件正文.pdf'`，自动通过 `manifest.json` 映射）。
+        搭配 `toc.md` 或 `search_text` 返回的页码使用，无需手工换算行号即可毫秒级精准翻页。
+        """
+        import json
+
+        cleaned = doc_path.strip().replace("\\", "/")
+        manifest_path = self.workspace_dir / ".workspace" / "parsed" / "manifest.json"
+        resolved_md: Path | None = None
+        toc_rel: str | None = None
+        source_label = cleaned
+
+        # 优先支持直接传源文档相对路径或文件名自动定位对应的 full.md
+        if manifest_path.is_file() and not cleaned.endswith("full.md"):
+            try:
+                docs = json.loads(manifest_path.read_text(encoding="utf-8")).get("documents", [])
+                exact = next((d for d in docs if d.get("source_path") == cleaned and d.get("parsed_markdown")), None)
+                fuzzy = exact or next(
+                    (d for d in docs if cleaned in str(d.get("source_path", "")) and d.get("parsed_markdown")),
+                    None,
+                )
+                if fuzzy:
+                    resolved_md = (self.workspace_dir / fuzzy["parsed_markdown"]).resolve()
+                    toc_rel = fuzzy.get("toc_markdown")
+                    source_label = fuzzy.get("source_path", cleaned)
+            except (OSError, ValueError, TypeError):
+                pass
+
+        if resolved_md is None:
+            cand = self._resolve_read_path(cleaned)
+            if cand.name == "toc.md" and (cand.parent / "full.md").is_file():
+                cand = cand.parent / "full.md"
+            resolved_md = cand
+            if (cand.parent / "toc.md").is_file():
+                toc_rel = (cand.parent / "toc.md").relative_to(self.workspace_dir).as_posix()
+
+        if not resolved_md.is_file():
+            raise FileNotFoundError(f"未找到已解析的 Markdown 缓存文件: {doc_path}，请先执行 ingest_documents")
+
+        raw_text = resolved_md.read_text(encoding="utf-8", errors="replace")
+        parts = re.split(r"(?=<!--\s*page:\s*\d+\s*-->)", raw_text)
+        page_map: dict[int, str] = {}
+        page_tag_re = re.compile(r"^<!--\s*page:\s*(\d+)\s*-->")
+
+        for chunk in parts:
+            m = page_tag_re.match(chunk.strip())
+            if m:
+                page_map[int(m.group(1))] = chunk.strip()
+
+        # 对于无分页锚点的单块文档（如 .docx / .doc / .txt），整体视作第 1 页返回
+        if not page_map:
+            return {
+                "source": source_label,
+                "parsed_markdown": resolved_md.relative_to(self.workspace_dir).as_posix(),
+                "total_pages": 1,
+                "start_page": 1,
+                "end_page": 1,
+                "content": raw_text[:18000],
+                "truncated": len(raw_text) > 18000,
+            }
+
+        max_page = max(page_map)
+        s = max(1, int(start_page))
+        e = min(max_page, max(s, int(end_page)), s + 14)
+        selected_chunks = [page_map[p] for p in range(s, e + 1) if p in page_map]
+        joined = "\n\n".join(selected_chunks)
+
+        return {
+            "source": source_label,
+            "parsed_markdown": resolved_md.relative_to(self.workspace_dir).as_posix(),
+            **({"toc_markdown": toc_rel} if toc_rel else {}),
+            "total_pages": max_page,
+            "start_page": s,
+            "end_page": e,
+            "has_more_pages": e < max_page,
+            "content": joined,
         }
 
     def write_workspace_file(self, path: str, content: str) -> dict[str, Any]:
