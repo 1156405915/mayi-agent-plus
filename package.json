@@ -1,0 +1,85 @@
+{
+  "name": "mayi-agent-plus",
+  "version": "0.1.0",
+  "private": true,
+  "description": "蚂蚁通用智能体工作台（AgentScope 薄内核 + 离线感知标准化 + 可插拔 Skill）",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js && node scripts/setup-python.mjs",
+    "setup:python": "node scripts/setup-python.mjs",
+    "dev": "electron-vite dev",
+    "build": "pnpm typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "test:py": ".venv/Scripts/python.exe -m unittest discover -s tests/python -p \"test_*.py\" -v",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "docs:dev": "node scripts/serve-docs.mjs",
+    "docs": "node scripts/serve-docs.mjs",
+    "package:dir": "pnpm build && electron-builder --dir",
+    "package:win": "pnpm build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.14",
+    "markdown-it": "^15.0.1",
+    "pinia": "^4.0.2",
+    "vue": "^3.5.40"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
+    "@types/node": "^26.1.1",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "electron": "43.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "2.3.0",
+    "typescript": "^5.9.2",
+    "vite": "^5.4.0",
+    "vitest": "^2.1.9",
+    "vue-tsc": "^3.3.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
+  },
+  "build": {
+    "appId": "com.mayi.agent.plus",
+    "productName": "蚂蚁 Agent Plus",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*.py",
+          "requirements.txt",
+          "!**/__pycache__/**"
+        ]
+      },
+      {
+        "from": "packages",
+        "to": "packages",
+        "filter": [
+          "**/*.py",
+          "!**/__pycache__/**"
+        ]
+      },
+      {
+        "from": "skills",
+        "to": "skills"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  }
+}

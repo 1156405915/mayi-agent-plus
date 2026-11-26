@@ -1,0 +1,17 @@
+agentscope==1.0.21
+mcp>=1.13,<2
+sqlalchemy[asyncio]>=2,<3
+openai>=1.99,<2
+httpx>=0.28,<1
+pydantic>=2.10,<3
+markdown-it-py>=3.0,<5
+pypdfium2==5.13.0
+pypdf>=6.9.1,<7
+Pillow>=12.1.1,<13
+rapidocr-onnxruntime==1.4.4
+onnxruntime>=1.20.1,<2
+numpy>=1.26.4,<3
+python-docx==1.2.0
+legacy-doc==0.2.1
+xlrd==2.0.2
+openpyxl==3.1.5
