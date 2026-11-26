@@ -84,7 +84,7 @@ def _build_shared_briefing(workspace_dir: Path, role: str) -> str:
             if fp.is_file():
                 content = fp.read_text(encoding="utf-8", errors="replace").strip()
                 if content:
-                    clipped = content[:4500] + ("\n...[后文可调用 read_lines 继续查阅]" if len(content) > 4500 else "")
+                    clipped = content[:10000] + ("\n...[后文可调用 read_lines 继续查阅]" if len(content) > 10000 else "")
                     sections.append(f"【{label} (`{fname}`)】\n{clipped}")
 
     return "\n\n".join(sections)
@@ -165,8 +165,20 @@ class SubAgentPoolTool:
             )
             sub_agent.set_console_output_enabled(False)
 
+            sub_round = 0
+
             async def _pre_sub_reasoning(_ag, _kw):
+                nonlocal sub_round
+                sub_round += 1
                 await compact_memory_if_needed(_ag.memory, trigger_chars=42000, keep_recent_messages=8)
+                if output_file and sub_round == max_iters - 2:
+                    await _ag.memory.add(
+                        Msg(
+                            "system",
+                            f"[宿主收尾提醒] 当前子任务仅剩最后 2 轮推理预算！请立即停止继续搜索，马上调用 `write_workspace_file` 将目前已掌握的完整内容写入 `{output_file}`。",
+                            "system",
+                        )
+                    )
 
             sub_agent.register_instance_hook("pre_reasoning", "sub_compact", _pre_sub_reasoning)
 

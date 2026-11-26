@@ -127,6 +127,10 @@ async def compact_memory_if_needed(
         changed_this_msg = False
         for block in msg.content:
             if isinstance(block, dict) and block.get("type") == "tool_result":
+                # 永不折叠已加载的领域技能规程（含后续阶段必需的编译/绘图/体检脚本路径）
+                if block.get("name") == "load_skill_detail":
+                    new_blocks.append(block)
+                    continue
                 raw_out = block.get("output")
                 out_str = json.dumps(raw_out, ensure_ascii=False) if not isinstance(raw_out, str) else raw_out
                 if len(out_str) > 900:

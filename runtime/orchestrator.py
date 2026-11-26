@@ -318,7 +318,7 @@ async def run_orchestrator_turn(
             formatter=OpenAIChatFormatter(),
             memory=InMemoryMemory(),
             toolkit=toolkit,
-            max_iters=50,
+            max_iters=80,
             parallel_tool_calls=False,
         )
         agent.set_console_output_enabled(False)

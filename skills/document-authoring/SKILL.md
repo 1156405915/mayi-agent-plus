@@ -69,4 +69,6 @@ description: 面向多源参考资料目录，按“离线解析与三级导航 
 3. **编译生成原生 `.docx` 并复检**：
    - 调用 `run_python` 执行 `compile_word.py`：
      `["--drafts-dir", "drafts", "--output", "deliverables/<正式标题>.docx", "--title", "<正式标题>", "--preset", "formal_bidding"]`（暗标传 `"--blind"`）。
-   - 确认返回 `"passed": true` 后，向用户汇报依据覆盖度、章节与图表统计、预估页数及 `deliverables/` 成品路径。
+   - **招标有页数上限时必须追加 `"--max-pages", "<N>"`**：脚本会调用本机 Word / LibreOffice 真实排版测页。**严禁用自写公式估算页数来宣布达标**（M5 实测：自估 45.5 页，真实排版 51 页）。
+   - 若 `audit.issues` 报告真实页数超限，按超出页数定点精简篇幅最大的章节（压缩重复措施描述、合并同类小表，保留评分点与关键数据），然后重新编译，直至 `passed: true`。
+   - 确认返回 `"passed": true` 后，向用户汇报依据覆盖度、章节与图表统计、**真实页数（`audit.real_pages`）**及 `deliverables/` 成品路径。

@@ -10,14 +10,15 @@ from packages.doc_engine.docx_auditor import audit_docx_file
 from packages.doc_engine.docx_builder import DEFAULT_STYLE_PRESET, compile_markdown_to_docx
 
 
-def _load_preset(preset_name_or_path: str) -> dict:
-    """按预设名（formal_bidding / standard_report / blind_bidding）或 JSON 路径加载版式参数。"""
+def _load_preset(preset_name_or_path: str, workspace_dir: Path | None = None) -> dict:
+    """按预设名（formal_bidding / standard_report / blind_bidding）或工作区自定义 JSON 路径加载版式参数。"""
     presets_dir = Path(__file__).resolve().parent.parent / "presets"
-    cand = presets_dir / f"{preset_name_or_path}.json"
-    if not cand.is_file():
-        cand = Path(preset_name_or_path)
-    if cand.is_file():
-        return {**DEFAULT_STYLE_PRESET, **json.loads(cand.read_text(encoding="utf-8"))}
+    candidates = [presets_dir / f"{preset_name_or_path}.json", Path(preset_name_or_path)]
+    if workspace_dir is not None:
+        candidates.append((workspace_dir / preset_name_or_path).resolve())
+    for cand in candidates:
+        if cand.is_file():
+            return {**DEFAULT_STYLE_PRESET, **json.loads(cand.read_text(encoding="utf-8"))}
     return dict(DEFAULT_STYLE_PRESET)
 
 
@@ -30,6 +31,8 @@ def main() -> int:
     parser.add_argument("--subtitle", default="", help="可选文档副标题（暗标模式下自动忽略）")
     parser.add_argument("--preset", default="formal_bidding", help="版式预设：formal_bidding | standard_report | blind_bidding")
     parser.add_argument("--blind", action="store_true", help="强制切换为 blind_bidding 技术暗标纯黑白合规模式")
+    # 招标文件有“≤N 页”要求时必须传入，成品会经真实排版引擎测页，超限直接判定不通过。
+    parser.add_argument("--max-pages", type=int, default=None, help="招标规定的页数上限（真实排版测页）")
     args = parser.parse_args()
 
     workspace_dir = Path(os.environ.get("MAYI_WORKSPACE_DIR") or Path.cwd()).resolve()
@@ -50,7 +53,7 @@ def main() -> int:
         return 1
 
     preset_name = "blind_bidding" if args.blind else args.preset
-    preset = _load_preset(preset_name)
+    preset = _load_preset(preset_name, workspace_dir=workspace_dir)
     is_blind = bool(args.blind or preset.get("monochrome", False))
 
     build_info = compile_markdown_to_docx(
@@ -61,7 +64,7 @@ def main() -> int:
         preset=preset,
         workspace_dir=workspace_dir,
     )
-    audit_info = audit_docx_file(output_docx, blind_mode=is_blind)
+    audit_info = audit_docx_file(output_docx, blind_mode=is_blind, max_pages=args.max_pages)
     payload = {
         "passed": audit_info["passed"],
         "preset_used": preset.get("name", preset_name),

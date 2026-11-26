@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -176,8 +180,77 @@ def audit_markdown_drafts(
     }
 
 
-def audit_docx_file(docx_path: Path, blind_mode: bool = False) -> dict[str, Any]:
-    """打开编译后的 .docx 成品文件，核验原生章节、表格、分节版式以及暗标纯黑白合规性。"""
+def measure_real_page_count(docx_path: Path, timeout_sec: int = 120) -> dict[str, Any]:
+    """
+    调用本机真实排版引擎测量 .docx 实际页数。
+
+    M5 实战教训：按字符数粗估（偏高 20%）与智能体自写几何估算（偏低 10%）都不可靠，
+    招标“≤N 页”属于硬性红线，必须以真实排版结果为准。
+    优先级：Windows Word COM（与评标专家打开效果一致）→ LibreOffice 转 PDF 计页 → 不可用。
+    返回 {"pages": int | None, "engine": str, "error": str | None}，测量失败不抛异常。
+    """
+    docx_path = Path(docx_path).resolve()
+    errors: list[str] = []
+
+    if sys.platform == "win32":
+        # 通过 PowerShell 驱动 COM，避免给运行时额外引入 pywin32 依赖；只读打开，不改动成品。
+        ps_path = str(docx_path).replace("'", "''")
+        ps = (
+            "$ErrorActionPreference='Stop';"
+            "$w=New-Object -ComObject Word.Application;$w.Visible=$false;$w.DisplayAlerts=0;"
+            f"try{{$d=$w.Documents.Open('{ps_path}',$false,$true);$d.Repaginate();"
+            "Write-Output ('PAGES=' + $d.ComputeStatistics(2));"
+            "try{$d.Close(0)}catch{}}finally{try{$w.Quit()}catch{}}"
+        )
+        try:
+            proc = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                capture_output=True, text=True, timeout=timeout_sec,
+            )
+            m = re.search(r"PAGES=(\d+)", proc.stdout or "")
+            if m:
+                return {"pages": int(m.group(1)), "engine": "word_com", "error": None}
+            errors.append(f"word_com: {(proc.stderr or proc.stdout or '').strip()[:200]}")
+        except Exception as exc:  # Word 未安装 / 超时都降级到下一引擎
+            errors.append(f"word_com: {exc}")
+
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if soffice:
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                subprocess.run(
+                    [soffice, "--headless", "--convert-to", "pdf", "--outdir", tmp, str(docx_path)],
+                    capture_output=True, timeout=timeout_sec,
+                )
+                pdfs = list(Path(tmp).glob("*.pdf"))
+                if pdfs:
+                    import pypdfium2 as pdfium
+
+                    pdf = pdfium.PdfDocument(str(pdfs[0]))
+                    try:
+                        return {"pages": len(pdf), "engine": "libreoffice", "error": None}
+                    finally:
+                        pdf.close()
+                errors.append("libreoffice: 未生成 PDF")
+        except Exception as exc:
+            errors.append(f"libreoffice: {exc}")
+
+    return {"pages": None, "engine": "unavailable", "error": "; ".join(errors) or "无可用排版引擎"}
+
+
+def audit_docx_file(
+    docx_path: Path,
+    blind_mode: bool = False,
+    max_pages: int | None = None,
+) -> dict[str, Any]:
+    """
+    打开编译后的 .docx 成品文件，核验原生章节、表格、分节版式以及暗标纯黑白合规性。
+
+    max_pages：招标文件规定的页数上限；传入时会调用真实排版引擎测页，超限记为阻断性问题，
+    驱动智能体回到草稿精简后重编译，而不是凭估算宣布达标。
+    """
+    # 兼容智能体在 run_python 中直接传入字符串路径的调用方式（M5 实测踩坑）。
+    docx_path = Path(docx_path)
     if not docx_path.is_file() or docx_path.stat().st_size == 0:
         return {
             "passed": False,
@@ -227,6 +300,21 @@ def audit_docx_file(docx_path: Path, blind_mode: bool = False) -> dict[str, Any]
     landscape_sections = sum(1 for s in doc.sections if s.page_width > s.page_height)
     estimated_pages = max(1, round((total_text_chars / 750.0) + len(doc.tables) * 0.4))
 
+    # 有页数红线时以真实排版为准；引擎不可用则退回估算并明确标注，避免静默放行。
+    real_pages: dict[str, Any] | None = None
+    if max_pages:
+        real_pages = measure_real_page_count(docx_path)
+        measured = real_pages["pages"]
+        if measured is not None and measured > max_pages:
+            issues.append(
+                f"真实排版页数 {measured} 页超过招标上限 {max_pages} 页（引擎：{real_pages['engine']}），"
+                f"需精简约 {measured - max_pages} 页内容后重新编译"
+            )
+        elif measured is None and estimated_pages > max_pages:
+            issues.append(
+                f"无可用排版引擎测页，字符估算 {estimated_pages} 页超过上限 {max_pages} 页，请精简或人工复核"
+            )
+
     return {
         "passed": len(issues) == 0,
         "docx_path": str(docx_path),
@@ -238,5 +326,8 @@ def audit_docx_file(docx_path: Path, blind_mode: bool = False) -> dict[str, Any]
         "table_count": len(doc.tables),
         "total_characters": total_text_chars,
         "estimated_pages": estimated_pages,
+        "max_pages": max_pages,
+        "real_pages": real_pages["pages"] if real_pages else None,
+        "page_engine": real_pages["engine"] if real_pages else None,
         "issues": issues,
     }

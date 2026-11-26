@@ -118,6 +118,7 @@ flowchart TB
 
 - **编译前草稿硬检（`audit_markdown_drafts`）**：逐行扫描全部章节草稿，硬性拦截 `TODO / TBD / FIXME`、`待补充 / 此处略 / 内容略`、连续 `XXX` 等未完成占位词，检查单章最低有效字数、一级标题规范性与插图路径断链。
 - **编译后成品复检（`audit_docx_file`）**：重新用 `python-docx` 打开生成的 `.docx` 二进制文件，验证 `Heading 1` 章节数、检查是否存在空表格或占位符漏网，并按中文字数与表格数量给出预估页数。
+- **真实排版测页（`measure_real_page_count`，M5 新增）**：传入 `max_pages` 时，通过 PowerShell 驱动本机 Word COM 只读打开成品并 `ComputeStatistics` 取真实页数（无 Word 时降级 LibreOffice 转 PDF 计页，均不可用时退回估算并显式告警）。超限即判 `passed: false`。字符估算仅作参考——M5 实测其偏差可达 ±20%，不能作为页数红线依据。
 
 ---
 

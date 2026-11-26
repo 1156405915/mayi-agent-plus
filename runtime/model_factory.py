@@ -30,16 +30,24 @@ class BoundedReActAgent(ReActAgent):
         raise IterationBudgetExceededError("已达到单次推理轮次预算上限，工作区已落盘成果均完整保留，可发送“继续”推进后续步骤。")
 
 
+DEEPSEEK_V4_MODELS = {"deepseek-flash", "deepseek-v4-flash", "deepseek-v4.1-flash", "deepseek-v4-pro"}
+
+
 def build_generation_kwargs(model_name: str, base_url: str, max_output_tokens: int | None = None) -> dict[str, Any]:
-    """根据目标服务端与模型名称组装生成参数，兼容 DeepSeek 等接口输出上限与非思考模式开关。"""
+    """根据目标服务端与模型名称组装生成参数，兼容 DeepSeek V4 大输出预算并关闭冗余思考链以保障工具调用稳定提速。"""
     kwargs: dict[str, Any] = {}
     host = (urlparse(base_url).hostname or "").lower()
     short_name = model_name.lower().rsplit("/", 1)[-1]
 
-    if max_output_tokens is not None and max_output_tokens > 0:
+    if max_output_tokens is not None and int(max_output_tokens) > 0:
         kwargs["max_tokens"] = int(max_output_tokens)
+    elif short_name in DEEPSEEK_V4_MODELS:
+        kwargs["max_tokens"] = 32768
     elif "deepseek" in host or short_name.startswith("deepseek"):
         kwargs["max_tokens"] = 8192
+
+    if host == "api.deepseek.com" or short_name.startswith("deepseek"):
+        kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
 
     return kwargs
 
