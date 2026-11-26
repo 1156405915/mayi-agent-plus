@@ -33,6 +33,7 @@ const workspaceFiles = ref<WorkspaceFileItem[]>([])
 const selectedFilePath = ref('')
 const selectedFileContent = ref('')
 const subagents = ref<Array<{ id: string; title: string; status: string }>>([])
+const activityLabel = ref('')
 
 let unsubscribeEvents: (() => void) | null = null
 
@@ -186,6 +187,11 @@ onMounted(async () => {
       }
       if (event.session.status === 'idle' || event.session.status === 'error') {
         subagents.value = []
+        activityLabel.value = ''
+      }
+    } else if (event.type === 'activity.status') {
+      if (event.sessionId === activeSessionId.value) {
+        activityLabel.value = event.label
       }
     } else if (event.type === 'message.updated') {
       if (event.sessionId !== activeSessionId.value) return
@@ -275,6 +281,7 @@ onUnmounted(() => {
       :session="activeSession"
       :messages="messages"
       :active-subagents="subagents"
+      :activity-label="activityLabel"
       @pick-source="handlePickSourceDir"
       @send="handleSendPrompt"
       @cancel="handleCancelSession"

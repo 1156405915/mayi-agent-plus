@@ -68,51 +68,58 @@ class WorkspaceFS:
             raise PermissionError(f"禁止向工作区外部写入文件: {rel_path}")
         return target, norm
 
-    def scan_directory(self, target: str = "source", subpath: str = ".", max_depth: int = 3) -> dict[str, Any]:
+    def scan_directory(self, target: str = "source", subpath: str = ".", max_depth: int = 12) -> dict[str, Any]:
         """
-        毫秒级扫描目录元数据树（文件名、相对路径、扩展名、大小），最多返回前 300 项以保护上下文体积。
+        毫秒级递归扫描深层目录元数据树（默认支持 12 层深嵌套，自动忽略 `~$` 锁文件与 `.dwl` 临时文件），最多返回 500 项及分类统计。
         target 可选 'source'（用户提供的源资料文件夹）或 'workspace'（当前任务工作区）。
         """
+        from packages.doc_engine.parser import is_ignored_temp_file
+
         base = self.source_dir if target == "source" else self.workspace_dir
         start = (base / subpath).resolve()
         if not start.is_relative_to(base) or not start.is_dir():
             raise ValueError(f"无效的扫描子目录: {target}:{subpath}")
 
         entries: list[dict[str, Any]] = []
+        ext_counts: dict[str, int] = {}
         truncated = False
-        max_depth = max(1, min(int(max_depth), 6))
+        max_depth = max(1, min(int(max_depth), 15))
 
         def _walk(curr: Path, depth: int) -> None:
             nonlocal truncated
-            if depth > max_depth or truncated:
+            if depth > max_depth:
                 return
             try:
                 children = sorted(curr.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
             except OSError:
                 return
             for item in children:
-                if item.name in IGNORED_DIRS or item.is_symlink():
+                if item.name in IGNORED_DIRS or item.is_symlink() or is_ignored_temp_file(item):
                     continue
-                if len(entries) >= 300:
-                    truncated = True
-                    return
                 rel = item.relative_to(base).as_posix()
                 if item.is_dir():
-                    entries.append({"path": rel, "kind": "dir"})
+                    if len(entries) < 500:
+                        entries.append({"path": rel, "kind": "dir"})
                     _walk(item, depth + 1)
                 elif item.is_file():
-                    entries.append({
-                        "path": rel,
-                        "kind": "file",
-                        "ext": item.suffix.lower(),
-                        "bytes": item.stat().st_size,
-                    })
+                    ext = item.suffix.lower() or "<no_ext>"
+                    ext_counts[ext] = ext_counts.get(ext, 0) + 1
+                    if len(entries) < 500:
+                        entries.append({
+                            "path": rel,
+                            "kind": "file",
+                            "ext": ext,
+                            "bytes": item.stat().st_size,
+                        })
+                    else:
+                        truncated = True
 
         _walk(start, 1)
         return {
             "target": target,
             "root": str(base),
             "count": len(entries),
+            "extension_summary": ext_counts,
             "truncated": truncated,
             "entries": entries,
         }
@@ -158,7 +165,10 @@ class WorkspaceFS:
             dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
             for fname in sorted(files):
                 fpath = Path(root_str) / fname
-                if fpath.suffix.lower() not in TEXT_EXTENSIONS:
+                if scope == "parsed":
+                    if fpath.suffix.lower() != ".md" or fname == "toc.md":
+                        continue
+                elif fpath.suffix.lower() not in TEXT_EXTENSIONS:
                     continue
                 rel_to_ws = (
                     fpath.resolve().relative_to(self.workspace_dir).as_posix()
@@ -179,6 +189,9 @@ class WorkspaceFS:
                         sm = source_banner_re.search(line)
                         if sm:
                             origin_doc = sm.group(1).strip()
+                            continue
+                        if line.startswith("# 源文档："):
+                            continue
                     pm = page_re.search(line)
                     if pm:
                         current_page = int(pm.group(1))

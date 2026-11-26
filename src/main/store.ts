@@ -177,7 +177,10 @@ export class LocalAppStore {
         if (entry.isDirectory()) {
           walk(full)
         } else if (entry.isFile()) {
-          if (rel.startsWith('.workspace/parsed/') && !(rel.endsWith('/full.md') || rel.endsWith('manifest.json'))) {
+          if (
+            rel.startsWith('.workspace/parsed/') &&
+            !(rel.endsWith('/full.md') || rel.endsWith('/toc.md') || rel.endsWith('manifest.json') || rel.endsWith('INDEX.md'))
+          ) {
             continue
           }
           const st = statSync(full)

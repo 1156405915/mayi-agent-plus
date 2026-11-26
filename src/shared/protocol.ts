@@ -76,6 +76,7 @@ export type RendererEvent =
   | { type: 'message.updated'; sessionId: string; message: ChatMessage }
   | { type: 'workspace.files'; sessionId: string; files: WorkspaceFileItem[]; changedPath?: string }
   | { type: 'subagent.status'; sessionId: string; id: string; title: string; status: string }
+  | { type: 'activity.status'; sessionId: string; label: string }
 
 export interface MayiDesktopApi {
   getSettings(): Promise<AppSettings>

@@ -7,6 +7,7 @@ const props = defineProps<{
   session: SessionRecord | null
   messages: ChatMessage[]
   activeSubagents: Array<{ id: string; title: string; status: string }>
+  activityLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -112,7 +113,7 @@ function submitGateDecision(gateId: string, approved: boolean): void {
             v-html="renderSafeMarkdown(msg.text)"
           />
           <div v-else-if="session?.status === 'running'" style="color: var(--text-muted); font-size: 13px">
-            正在思考与调度工具...
+            {{ activityLabel || '正在思考与调度工具...' }}
           </div>
 
           <!-- 自适应人机确认门禁卡片 -->

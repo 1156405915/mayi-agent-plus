@@ -172,6 +172,12 @@ export class PythonRuntimeBridge {
             files,
             changedPath: typeof frame.path === 'string' ? frame.path : undefined
           })
+        } else if (type === 'activity') {
+          this.emitToRenderer({
+            type: 'activity.status',
+            sessionId,
+            label: String(frame.label || '')
+          })
         } else if (type === 'subagent_status') {
           this.emitToRenderer({
             type: 'subagent.status',

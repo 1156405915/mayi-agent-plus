@@ -115,7 +115,9 @@ def collect_workspace_files(workspace_dir: Path) -> list[dict[str, Any]]:
         # 隐藏内部临时脚本与状态目录，但保留 .workspace/parsed/manifest.json 供查阅解析报告
         if rel.startswith(".workspace/scripts/") or rel.startswith(".workspace/.state/"):
             continue
-        if rel.startswith(".workspace/parsed/") and not (rel.endswith("/full.md") or rel.endswith("manifest.json")):
+        if rel.startswith(".workspace/parsed/") and not (
+            rel.endswith("/full.md") or rel.endswith("/toc.md") or rel.endswith("manifest.json") or rel.endswith("INDEX.md")
+        ):
             continue
         results.append({
             "path": rel,
@@ -160,7 +162,12 @@ async def run_orchestrator_turn(
 
     skill_registry = SkillRegistry(skills_root)
     fs_tools = WorkspaceFS(workspace_dir, source_dir, on_workspace_changed=notify_ws_change)
-    ingest_tool = DocumentIngestTool(workspace_dir, source_dir, on_workspace_changed=notify_ws_change)
+    ingest_tool = DocumentIngestTool(
+        workspace_dir,
+        source_dir,
+        on_workspace_changed=notify_ws_change,
+        on_progress_event=lambda label: emit({"type": "activity", "label": label}),
+    )
     exec_tool = PythonExecTool(project_root, workspace_dir, source_dir, skills_root, on_workspace_changed=notify_ws_change)
     human_tool = HumanInteractionTool(
         workspace_dir,
@@ -212,6 +219,7 @@ async def run_orchestrator_turn(
             fs_tools.write_workspace_file,
             fs_tools.edit_workspace_file,
             ingest_tool.ingest_documents,
+            ingest_tool.ocr_pdf_pages,
             exec_tool.run_python,
             subagent_tool.run_subagents,
             human_tool.update_cognitive_steps,

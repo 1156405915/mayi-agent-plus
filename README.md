@@ -42,6 +42,13 @@ mayi-agent-plus/
 │   └── document-authoring/     # [01] 首个标杆技能：复杂标准文档/方案/标书全流程编纂
 │
 └── docs/                       # Docsify 在线架构与实战文档站
+    ├── architecture.md         # 五步认知闭环与三层通用架构详解
+    ├── design-reflection.md    # 架构演进复盘：从状态锁泥潭到极简解耦
+    ├── engine/
+    │   ├── doc-engine.md       # doc_engine 离线多格式解析、Word 编译与 248 文件压测踩坑实录
+    │   └── runtime-and-workbench.md # AgentScope 薄内核五大原子工具与双栏工作台协同机制
+    └── skills/
+        └── 01-document-authoring.md # 首个标杆长文档编纂 Skill 实现详解
 ```
 
 ---

@@ -93,6 +93,12 @@ class SubAgentPoolTool:
             tk.register_tool_function(_wrap_sub_tool(scoped_fs.scan_directory))
             tk.register_tool_function(_wrap_sub_tool(scoped_fs.search_text))
             tk.register_tool_function(_wrap_sub_tool(scoped_fs.read_lines))
+            if role == "researcher":
+                from runtime.tools_ingest import DocumentIngestTool
+                scoped_ingest = DocumentIngestTool(
+                    self.workspace_dir, self.source_dir, on_workspace_changed=self.on_workspace_changed
+                )
+                tk.register_tool_function(_wrap_sub_tool(scoped_ingest.ocr_pdf_pages))
             if output_file is not None:
                 tk.register_tool_function(_wrap_sub_tool(scoped_fs.write_workspace_file))
                 tk.register_tool_function(_wrap_sub_tool(scoped_fs.edit_workspace_file))

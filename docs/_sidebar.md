@@ -3,5 +3,9 @@
   * [五步认知闭环与通用薄内核架构](architecture.md)
   * [架构演进复盘：从缝补状态锁到极简解耦](design-reflection.md)
 
+* **核心引擎实现方案**
+  * [doc_engine 离线文档标准化与 Word 编译引擎](engine/doc-engine.md)
+  * [AgentScope 薄内核与双栏工作台协同机制](engine/runtime-and-workbench.md)
+
 * **标杆 Skill 与扩展指南**
   * [01 - 复杂标准长文档编纂 Skill](skills/01-document-authoring.md)
