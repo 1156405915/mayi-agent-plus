@@ -180,6 +180,30 @@ def _usable_section_width_cm(doc: Document) -> float:
     return max(10.0, float(usable_emu) / 360000.0)
 
 
+def _usable_section_height_cm(doc: Document) -> float:
+    """计算当前末尾 Section 版心可用高度（厘米），用于限制高图不溢出单页。"""
+    sec = doc.sections[-1]
+    usable_emu = sec.page_height - sec.top_margin - sec.bottom_margin
+    return max(8.0, float(usable_emu) / 360000.0)
+
+
+def _fit_image_width_cm(image_path: Path, max_width_cm: float, max_height_cm: float) -> float:
+    """
+    按图片真实宽高比计算插入宽度：优先铺满可用宽度，若换算高度超过 max_height_cm 则等比缩小。
+    读取图片尺寸失败时退回最大宽度，保证编译不中断。
+    """
+    try:
+        from PIL import Image
+
+        with Image.open(image_path) as im:
+            w_px, h_px = im.size
+        if w_px <= 0 or h_px <= 0:
+            return max_width_cm
+        return min(max_width_cm, max_height_cm * w_px / h_px)
+    except Exception:
+        return max_width_cm
+
+
 def _render_inline_tokens(
     paragraph,
     children: list[Any],
@@ -204,11 +228,19 @@ def _render_inline_tokens(
         candidate = (workspace_dir / src).resolve()
         if candidate.is_file() and candidate.is_relative_to(workspace_dir.resolve()):
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            paragraph.paragraph_format.first_line_indent = Pt(0)
-            paragraph.paragraph_format.keep_with_next = bool(caption_text.strip())
+            pf = paragraph.paragraph_format
+            pf.first_line_indent = Pt(0)
+            # 关键修复：Normal 样式为“固定值 22 磅”行距，图片段落继承后行高被锁死，
+            # 高图只显示一条并被上下文字覆盖。此处改为单倍行距，让行高随图片自动撑开。
+            pf.line_spacing = 1.0
+            pf.space_before = Pt(6)
+            pf.space_after = Pt(2)
+            pf.keep_with_next = bool(caption_text.strip())
             usable_cm = _usable_section_width_cm(doc)
             max_img_cm = min(23.2, usable_cm * 0.94) if usable_cm > 19.0 else min(15.0, usable_cm * 0.94)
-            paragraph.add_run().add_picture(str(candidate), width=Cm(max_img_cm))
+            # 高瘦图（流程图、体系图）按宽度铺满会超出版心高度，按页面可用高度等比收缩，预留题注空间。
+            img_w_cm = _fit_image_width_cm(candidate, max_img_cm, _usable_section_height_cm(doc) * 0.85)
+            paragraph.add_run().add_picture(str(candidate), width=Cm(img_w_cm))
             if caption_text.strip():
                 cap_p = doc.add_paragraph()
                 cap_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
