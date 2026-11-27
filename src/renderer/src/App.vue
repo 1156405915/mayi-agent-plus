@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import type {
   AppSettings,
+  AppUpdateState,
   ChatMessage,
   CognitiveStep,
   SessionRecord,
@@ -34,6 +35,10 @@ const selectedFilePath = ref('')
 const selectedFileContent = ref('')
 const subagents = ref<Array<{ id: string; title: string; status: string }>>([])
 const activityLabel = ref('')
+const updateState = ref<AppUpdateState>({
+  status: 'idle',
+  currentVersion: '0.1.0'
+})
 
 let unsubscribeEvents: (() => void) | null = null
 
@@ -168,8 +173,28 @@ async function handleSaveSettings(patch: AppSettings): Promise<void> {
   showSettings.value = false
 }
 
+/**
+ * 手动触发一次服务端新版本检测。
+ */
+async function handleCheckUpdate(): Promise<void> {
+  updateState.value = await window.mayiApi.checkForUpdates()
+}
+
+/**
+ * 安装已后台下载完成的更新包：若当前有正在生成的会话，先弹窗二次确认以免误断任务。
+ */
+async function handleInstallUpdate(): Promise<void> {
+  const hasRunning = sessions.value.some((s) => s.status === 'running')
+  if (hasRunning) {
+    const ok = window.confirm('当前有任务正在后台运行，立即重启升级会中断当前轮次（已完成检查点可续跑），确认立即重启升级吗？')
+    if (!ok) return
+  }
+  await window.mayiApi.quitAndInstallUpdate()
+}
+
 onMounted(async () => {
   settings.value = await window.mayiApi.getSettings()
+  updateState.value = await window.mayiApi.getUpdateState()
   sessions.value = await window.mayiApi.listSessions()
   if (sessions.value.length === 0) {
     await handleCreateSession()
@@ -225,6 +250,8 @@ onMounted(async () => {
       } else if (idx >= 0) {
         subagents.value.splice(idx, 1)
       }
+    } else if (event.type === 'updater.status') {
+      updateState.value = event.state
     }
   })
 })
@@ -269,9 +296,30 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="rail-footer">
+      <div class="rail-footer" style="display: flex; flex-direction: column; gap: 6px">
+        <!-- 实时自动热更新提醒条：后台下载时显示进度，下载完成后一键静默重启升级 -->
+        <div
+          v-if="updateState.status === 'downloading'"
+          style="font-size: 11.5px; background: #eff6ff; color: #1d4ed8; padding: 6px 8px; border-radius: 6px"
+        >
+          <div>⬇️ 正在下载新版本 v{{ updateState.latestVersion }} ({{ updateState.percent ?? 0 }}%)</div>
+          <div style="height: 4px; background: #dbeafe; border-radius: 2px; margin-top: 4px; overflow: hidden">
+            <div
+              :style="{ width: `${updateState.percent ?? 0}%`, height: '100%', background: '#2563eb', transition: 'width 0.2s' }"
+            />
+          </div>
+        </div>
+        <button
+          v-else-if="updateState.status === 'downloaded'"
+          class="btn btn-primary"
+          style="width: 100%; background: #16a34a; border-color: #16a34a; font-size: 12px"
+          @click="handleInstallUpdate"
+        >
+          🚀 升级至 v{{ updateState.latestVersion }}（点击重启）
+        </button>
+
         <button class="btn" style="width: 100%" @click="showSettings = true">
-          ⚙️ 模型设置 ({{ settings.model }})
+          ⚙️ 设置 · v{{ updateState.currentVersion }}
         </button>
       </div>
     </nav>
@@ -304,8 +352,11 @@ onUnmounted(() => {
     <SettingsModal
       :visible="showSettings"
       :settings="settings"
+      :update-state="updateState"
       @close="showSettings = false"
       @save="handleSaveSettings"
+      @check-update="handleCheckUpdate"
+      @install-update="handleInstallUpdate"
     />
   </div>
 </template>

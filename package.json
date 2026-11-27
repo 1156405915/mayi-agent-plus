@@ -16,11 +16,14 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "docs:dev": "node scripts/serve-docs.mjs",
     "docs": "node scripts/serve-docs.mjs",
-    "package:dir": "pnpm build && electron-builder --dir",
-    "package:win": "pnpm build && electron-builder --win nsis"
+    "prepare:python": "node scripts/prepare-portable-python.mjs",
+    "package:dir": "node scripts/prepare-portable-python.mjs && pnpm build && electron-builder --dir",
+    "package:win": "node scripts/prepare-portable-python.mjs && pnpm build && electron-builder --win nsis --publish never",
+    "release:publish": "node scripts/publish-release.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.14",
+    "electron-updater": "^6.8.11",
     "markdown-it": "^15.0.1",
     "pinia": "^4.0.2",
     "vue": "^3.5.40"
@@ -47,6 +50,7 @@
   "build": {
     "appId": "com.mayi.agent.plus",
     "productName": "蚂蚁 Agent Plus",
+    "artifactName": "mayi-agent-plus-setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -54,6 +58,14 @@
       "out/**/*"
     ],
     "extraResources": [
+      {
+        "from": "build-python",
+        "to": "python",
+        "filter": [
+          "**/*",
+          "!**/.portable-stamp.json"
+        ]
+      },
       {
         "from": "runtime",
         "to": "runtime",
@@ -76,10 +88,24 @@
         "to": "skills"
       }
     ],
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "https://your-server-domain.com/mayi-updates/"
+      }
+    ],
     "win": {
       "target": [
         "nsis"
       ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "蚂蚁 Agent Plus",
+      "differentialPackage": true
     }
   }
 }

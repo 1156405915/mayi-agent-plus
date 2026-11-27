@@ -15,7 +15,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   apiKey: process.env.MAYI_API_KEY || process.env.MAYI_AGENTSCOPE_API_KEY || '',
   baseUrl: process.env.MAYI_BASE_URL || 'https://api.deepseek.com',
   model: process.env.MAYI_MODEL || 'deepseek-chat',
-  autoApproveGates: false
+  autoApproveGates: false,
+  updateUrl: process.env.MAYI_UPDATE_URL || ''
 }
 
 /**

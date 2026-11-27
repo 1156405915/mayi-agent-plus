@@ -11,3 +11,6 @@
   * [01 - 复杂标准长文档编纂 Skill](skills/01-document-authoring.md)
   * [02 - M5 实战复盘：延锋地块端到端成稿](skills/02-m5-yanfeng-case-study.md)
   * [03 - M6 专项升级：合肥青天评标质检体系](skills/03-m6-qingtian-qa-upgrade.md)
+
+* **生产部署与运维**
+  * [服务端 Nginx 部署与客户端自动热更新](deploy-and-autoupdate.md)

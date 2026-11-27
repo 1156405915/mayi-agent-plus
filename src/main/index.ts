@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import type { AppSettings, RendererEvent } from '../shared/protocol'
 import { PythonRuntimeBridge } from './runtime-bridge'
 import { LocalAppStore } from './store'
+import { AppAutoUpdaterService } from './updater'
 import { resolveSafeWorkspaceFile, validateSourceDirectory } from './workspace-guard'
 
 const currentDir = dirname(fileURLToPath(import.meta.url))
@@ -72,9 +73,21 @@ app.whenReady().then(() => {
   const { projectRoot, runtimeEntry } = resolveRuntimePaths()
   const store = new LocalAppStore(dataRoot)
   const bridge = new PythonRuntimeBridge(projectRoot, runtimeEntry, store, broadcast)
+  const updater = new AppAutoUpdaterService(store, broadcast)
 
   ipcMain.handle('settings:get', () => store.getSettings())
-  ipcMain.handle('settings:save', (_e, patch: Partial<AppSettings>) => store.saveSettings(patch))
+  ipcMain.handle('settings:save', (_e, patch: Partial<AppSettings>) => {
+    const prevUrl = store.getSettings().updateUrl
+    const saved = store.saveSettings(patch)
+    // 若用户修改了热更新服务器地址，立即异步触发一次新源连通性与版本探测
+    if (saved.updateUrl && saved.updateUrl !== prevUrl) {
+      void updater.checkForUpdates(true)
+    }
+    return saved
+  })
+  ipcMain.handle('updater:getState', () => updater.getState())
+  ipcMain.handle('updater:check', () => updater.checkForUpdates(false))
+  ipcMain.handle('updater:quitAndInstall', () => updater.quitAndInstall())
 
   ipcMain.handle('session:list', () => store.listSessions())
   ipcMain.handle('session:create', (_e, input?: { title?: string; sourceDir?: string }) => {
@@ -144,6 +157,7 @@ app.whenReady().then(() => {
   })
 
   mainWindow = createMainWindow()
+  updater.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createMainWindow()

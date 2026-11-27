@@ -31,12 +31,18 @@ export function extractSourceDirFromPrompt(prompt: string): string | null {
  * 探测可用的项目私有 Python 解释器（优先当前工程 .venv，开发态可平滑回退同级缓存环境）。
  */
 export function resolvePythonExecutable(projectRoot: string): string {
+  const portableExe =
+    process.platform === 'win32'
+      ? join(projectRoot, 'python', 'python.exe')
+      : join(projectRoot, 'python', 'bin', 'python3')
   const winRel = join('.venv', 'Scripts', 'python.exe')
   const unixRel = join('.venv', 'bin', 'python')
   const rel = process.platform === 'win32' ? winRel : unixRel
 
+  // 打包态优先命中随安装包内置的便携可重定位 Python（resources/python/python.exe），无需客户机预装环境。
   const candidates = [
     process.env.MAYI_PYTHON_EXECUTABLE,
+    portableExe,
     join(projectRoot, rel),
     join(resolve(projectRoot, '..', 'mayi-agent'), rel),
     'python'

@@ -7,6 +7,9 @@ import type { AppSettings, MayiDesktopApi, RendererEvent } from '../shared/proto
 const api: MayiDesktopApi = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (patch: Partial<AppSettings>) => ipcRenderer.invoke('settings:save', patch),
+  getUpdateState: () => ipcRenderer.invoke('updater:getState'),
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  quitAndInstallUpdate: () => ipcRenderer.invoke('updater:quitAndInstall'),
   listSessions: () => ipcRenderer.invoke('session:list'),
   createSession: (input) => ipcRenderer.invoke('session:create', input),
   deleteSession: (sessionId) => ipcRenderer.invoke('session:delete', sessionId),

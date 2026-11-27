@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { extractSourceDirFromPrompt } from '../../src/main/runtime-bridge'
+import { extractSourceDirFromPrompt, resolvePythonExecutable } from '../../src/main/runtime-bridge'
 import { LocalAppStore } from '../../src/main/store'
 import { resolveSafeWorkspaceFile, validateSourceDirectory } from '../../src/main/workspace-guard'
 
@@ -58,5 +58,29 @@ describe('Mayi Agent Plus 宿主核心单元测试', () => {
   it('可从自然语言提示词中提取显式标注的资料目录地址', () => {
     const extracted = extractSourceDirFromPrompt('请帮我分析资料目录：D:\\project-test\\bid-docs 并生成完整方案')
     expect(extracted).toBe('D:\\project-test\\bid-docs')
+  })
+
+  it('打包态优先寻址内置便携式 Python 运行时并支持持久化热更新服务器地址', () => {
+    const resRoot = mkdtempSync(join(tmpdir(), 'mayi-portable-'))
+    tempDirs.push(resRoot)
+
+    const portablePath =
+      process.platform === 'win32'
+        ? join(resRoot, 'python', 'python.exe')
+        : join(resRoot, 'python', 'bin', 'python3')
+    mkdirSync(join(resRoot, process.platform === 'win32' ? 'python' : 'python/bin'), { recursive: true })
+    writeFileSync(portablePath, 'stub', 'utf8')
+
+    const prevOverride = process.env.MAYI_PYTHON_EXECUTABLE
+    delete process.env.MAYI_PYTHON_EXECUTABLE
+    try {
+      expect(resolvePythonExecutable(resRoot)).toBe(portablePath)
+    } finally {
+      if (prevOverride) process.env.MAYI_PYTHON_EXECUTABLE = prevOverride
+    }
+
+    const store = new LocalAppStore(resRoot)
+    const saved = store.saveSettings({ updateUrl: 'https://updates.example.com/mayi-plus/' })
+    expect(saved.updateUrl).toBe('https://updates.example.com/mayi-plus/')
   })
 })

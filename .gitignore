@@ -14,3 +14,4 @@ Thumbs.db
 *.log
 .mayi-plus-data/
 test-temp/
+build-python/

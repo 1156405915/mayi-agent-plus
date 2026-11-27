@@ -11,6 +11,33 @@ export interface AppSettings {
   baseUrl: string
   model: string
   autoApproveGates: boolean
+  /**
+   * 可选的自有服务器热更新源地址（如 https://updates.your-domain.com/mayi-plus/）；
+   * 留空时默认使用安装包内置的 publish.url。
+   */
+  updateUrl?: string
+}
+
+export type UpdateStatusKind =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+export interface AppUpdateState {
+  status: UpdateStatusKind
+  currentVersion: string
+  latestVersion?: string
+  percent?: number
+  transferredBytes?: number
+  totalBytes?: number
+  bytesPerSecond?: number
+  releaseNotes?: string
+  errorMessage?: string
+  checkedAt?: number
 }
 
 export interface CognitiveStep {
@@ -77,10 +104,14 @@ export type RendererEvent =
   | { type: 'workspace.files'; sessionId: string; files: WorkspaceFileItem[]; changedPath?: string }
   | { type: 'subagent.status'; sessionId: string; id: string; title: string; status: string }
   | { type: 'activity.status'; sessionId: string; label: string }
+  | { type: 'updater.status'; state: AppUpdateState }
 
 export interface MayiDesktopApi {
   getSettings(): Promise<AppSettings>
   saveSettings(patch: Partial<AppSettings>): Promise<AppSettings>
+  getUpdateState(): Promise<AppUpdateState>
+  checkForUpdates(): Promise<AppUpdateState>
+  quitAndInstallUpdate(): Promise<void>
   listSessions(): Promise<SessionRecord[]>
   createSession(input?: { title?: string; sourceDir?: string }): Promise<SessionRecord>
   deleteSession(sessionId: string): Promise<void>
