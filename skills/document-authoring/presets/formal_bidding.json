@@ -22,5 +22,7 @@
   "table_header_fill": "EBEBEB",
   "table_border_color": "444444",
   "include_cover": true,
-  "include_toc": true
+  "include_toc": true,
+  "require_qingtian_gate": true,
+  "qingtian_min_score": 90.0
 }

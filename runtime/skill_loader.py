@@ -95,6 +95,13 @@ class SkillRegistry:
             if presets_dir.is_dir()
             else []
         )
+        # 自动附带技能包下的 references/*.md 评审量表与作业标准，免去跨目录读取权限受限问题。
+        refs_dir = info.skill_dir / "references"
+        references = (
+            {p.name: p.read_text(encoding="utf-8", errors="replace") for p in sorted(refs_dir.glob("*.md"))}
+            if refs_dir.is_dir()
+            else {}
+        )
         return {
             "status": "ok",
             "skill_id": info.skill_id,
@@ -102,5 +109,6 @@ class SkillRegistry:
             "skill_dir": str(info.skill_dir),
             "scripts": {name: str((info.skill_dir / "scripts" / name).resolve()) for name in info.scripts},
             "presets": presets,
+            "references": references,
             "instructions": body,
         }

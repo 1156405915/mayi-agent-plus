@@ -24,13 +24,19 @@ ROLE_PROMPTS = {
         "所有提炼出的要求、标准、金额、工期、工程量必须附上准确来源定位（如 `[招标文件正文.pdf P5]`），严禁主观臆测。"
     ),
     "author": (
-        "你是专业文档撰稿子代理。请严格对齐已注入的全局约束清单（`01-requirements.md`）与规划大纲（`02-plan.md`），"
-        "必要时调用 `search_text` / `read_parsed_pages` 核实源文档细节，用规范受控 Markdown（首行 `# 第X章 ...`，"
-        "多用结构化 GFM 管道表格承载参数与计划）完成被分配的独占章节文件。严禁出现 TODO、XXX、待补充等占位词。"
+        "你是高标准专业技术撰稿子代理。请严格对齐已注入的事实基线（`00-facts.md`）、全局约束清单（`01-requirements.md`）与规划大纲（`02-plan.md`），"
+        "采用“工况痛点/重难点定界 → 定量工艺参数与机械产能验算 → 现行国行地标强条验收控制表”的高密度专业结构撰写被分配的独占章节。"
+        "严禁堆砌超过 300 字不分段的大段散文墙，严禁用“按规范要求/合理安排/高度重视/确保达标”等万能套话糊弄关键技术指标，严禁出现 TODO、XXX、待补充等占位词。"
     ),
     "reviewer": (
-        "你是独立挑刺审查子代理（Verifier）。你未参与初稿撰写，请保持严苛客观视角，逐条对照 `01-requirements.md` 与 `02-plan.md`"
+        "你是独立挑刺审查子代理（Verifier）。你未参与初稿撰写，请保持严苛客观视角，逐条对照 `00-facts.md`、`01-requirements.md` 与 `02-plan.md`"
         "核查各章草稿是否存在漏响应评分点、前后工期/金额/工程量口径矛盾或空洞套话，输出具体文件、位置与修复建议。"
+    ),
+    "inspector": (
+        "你是独立首席评标质检官（QA Inspector）。你完全独立于撰稿团队，负责以严苛的智能辅助评标算法与资深评审专家双重标准，"
+        "结合确定性雷达扫描数据对全套章节草稿进行逐章穿透式审查与五维量化打分。"
+        "凡发现漏项跳号、大段散文墙、套话口号、“按规范”模糊逃避词、缺少国地标编号与定量产能验算、或跨章数据打架，必须据实扣分并开具精确到文件与小节的强制返工处方；"
+        "未达到高分准入标准前绝不放行。"
     ),
 }
 
@@ -79,13 +85,29 @@ def _build_shared_briefing(workspace_dir: Path, role: str) -> str:
             except (OSError, ValueError, TypeError):
                 pass
     else:
-        for fname, label in (("01-requirements.md", "全局目标与约束底座"), ("02-plan.md", "全局目录与规划底座")):
+        # 自动注入事实基线、需求约束与全局规划，消除并行撰稿与质检子代理的口径漂移。
+        for fname, label in (
+            ("00-facts.md", "唯一事实与工程量数据基线"),
+            ("01-requirements.md", "全局目标与约束底座"),
+            ("02-plan.md", "全局目录与规划底座"),
+        ):
             fp = workspace_dir / fname
             if fp.is_file():
                 content = fp.read_text(encoding="utf-8", errors="replace").strip()
                 if content:
-                    clipped = content[:10000] + ("\n...[后文可调用 read_lines 继续查阅]" if len(content) > 10000 else "")
+                    clipped = content[:8500] + ("\n...[后文可调用 read_lines 继续查阅]" if len(content) > 8500 else "")
                     sections.append(f"【{label} (`{fname}`)】\n{clipped}")
+
+        # 对审查/质检角色自动附带最新的确定性雷达体检快照，辅助精准定位套话、散文墙与规范缺口。
+        if role in ("inspector", "reviewer"):
+            radar_fp = workspace_dir / ".workspace" / "qingtian_radar.json"
+            if radar_fp.is_file():
+                radar_raw = radar_fp.read_text(encoding="utf-8", errors="replace").strip()
+                if radar_raw:
+                    sections.append(
+                        "【确定性青天雷达扫描快照 (`.workspace/qingtian_radar.json`)】\n"
+                        + radar_raw[:9000]
+                    )
 
     return "\n\n".join(sections)
 
@@ -113,8 +135,10 @@ class SubAgentPoolTool:
         title = str(spec.get("title") or task_id).strip()
         prompt = str(spec.get("prompt") or "").strip()
         role = str(spec.get("role") or "researcher").strip().lower()
+        custom_role_prompt = str(spec.get("role_prompt") or "").strip()
         output_file = str(spec.get("output_file") or "").strip().replace("\\", "/").lstrip("/") or None
-        max_iters = max(4, min(int(spec.get("max_iters") or 22), 36))
+        default_iters = 28 if role in ("inspector", "reviewer") else 22
+        max_iters = max(4, min(int(spec.get("max_iters") or default_iters), 40))
 
         if not prompt:
             return {"id": task_id, "title": title, "status": "failed", "error": "子任务 prompt 不能为空"}
@@ -147,6 +171,8 @@ class SubAgentPoolTool:
                 tk.register_tool_function(_wrap_sub_tool(self.workspace_dir, scoped_fs.edit_workspace_file))
 
             sys_prompt = ROLE_PROMPTS.get(role, ROLE_PROMPTS["researcher"])
+            if custom_role_prompt:
+                sys_prompt += "\n\n【领域专项角色规程】\n" + custom_role_prompt
             briefing = _build_shared_briefing(self.workspace_dir, role)
             if briefing:
                 sys_prompt += "\n\n" + briefing
@@ -229,8 +255,9 @@ class SubAgentPoolTool:
     async def run_subagents(self, tasks: list[dict[str, Any]], max_concurrency: int = 3) -> dict[str, Any]:
         """
         并发启动 1~8 个拥有独立上下文记忆的子代理（用于多份文档并行提炼、多章节并行写稿或独立挑刺审查）。
-        每个 `tasks` 元素包含：`id`、`title`、`prompt`、可选 `role` ('researcher'|'author'|'reviewer')、
-        可选 `output_file`（如 'drafts/01-overview.md'，不同子任务的 output_file 必须互不相同）。
+        每个 `tasks` 元素包含：`id`、`title`、`prompt`、可选 `role` ('researcher'|'author'|'reviewer'|'inspector')、
+        可选 `role_prompt`（由具体 Skill 注入的专项评审/撰稿人设规程）、
+        可选 `output_file`（如 'drafts/01-overview.md' 或 '03-qingtian-review.md'，不同子任务的 output_file 必须互不相同）。
         """
         if not tasks or len(tasks) > 8:
             raise ValueError("单次 `run_subagents` 请传入 1 至 8 个独立子任务")

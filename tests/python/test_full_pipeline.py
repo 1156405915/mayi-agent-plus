@@ -162,8 +162,8 @@ class MayiAgentPlusPipelineTests(unittest.TestCase):
                     "--drafts-dir", "drafts",
                     "--output", "deliverables/智慧道路改造施工组织设计.docx",
                     "--title", "高新区智慧道路改造工程施工组织设计",
-                    "--subtitle", "投标技术文件",
-                    "--preset", "formal_bidding",
+                    "--subtitle", "技术方案报告",
+                    "--preset", "standard_report",
                 ],
             )
             self.assertEqual(compile_res["status"], "succeeded", compile_res["stderr"])

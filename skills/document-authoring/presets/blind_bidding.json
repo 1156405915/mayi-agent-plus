@@ -26,5 +26,7 @@
   "header_text": "",
   "monochrome": true,
   "auto_landscape_wide_tables": true,
-  "wide_table_col_threshold": 8
+  "wide_table_col_threshold": 8,
+  "require_qingtian_gate": true,
+  "qingtian_min_score": 90.0
 }

@@ -58,8 +58,13 @@ class WorkspaceFS:
         norm = rel_path.strip().replace("\\", "/").lstrip("/")
         if not norm or norm.startswith("..") or "/../" in f"/{norm}/":
             raise PermissionError(f"非法的工作区相对路径: {rel_path}")
-        if norm.startswith(".workspace/parsed/"):
-            raise PermissionError("标准化解析缓存目录由 ingest_documents 维护，请勿手工覆盖")
+        # 保护解析缓存、会话检查点及质检准入证不被模型通过普通写文件工具手工篡改伪造。
+        if (
+            norm.startswith(".workspace/parsed/")
+            or norm.startswith(".workspace/.state/")
+            or norm == ".workspace/qingtian_certificate.json"
+        ):
+            raise PermissionError("系统受控缓存与质检准入证文件由专用引擎维护，禁止手工覆盖")
         if self.allowed_write_file is not None and norm != self.allowed_write_file:
             raise PermissionError(f"当前子任务仅被授权写入 `{self.allowed_write_file}`，拒绝写入 `{norm}`")
 

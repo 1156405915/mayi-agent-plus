@@ -1,0 +1,30 @@
+{
+  "name": "hefei_qingtian_bidding",
+  "page_width_cm": 21.0,
+  "page_height_cm": 29.7,
+  "margin_top_cm": 2.5,
+  "margin_bottom_cm": 2.5,
+  "margin_left_cm": 3.0,
+  "margin_right_cm": 2.0,
+  "east_asia_body_font": "宋体",
+  "east_asia_heading_font": "黑体",
+  "western_font": "Times New Roman",
+  "body_size_pt": 14.0,
+  "line_spacing_pt": 22.0,
+  "first_line_indent_chars": 2,
+  "heading_sizes_pt": {
+    "1": 16.0,
+    "2": 14.0,
+    "3": 14.0,
+    "4": 14.0
+  },
+  "table_font_size_pt": 10.5,
+  "table_header_fill": "EBEBEB",
+  "table_border_color": "444444",
+  "include_cover": true,
+  "include_toc": true,
+  "auto_landscape_wide_tables": true,
+  "wide_table_col_threshold": 8,
+  "require_qingtian_gate": true,
+  "qingtian_min_score": 90.0
+}

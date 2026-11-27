@@ -305,10 +305,15 @@ async def run_orchestrator_turn(
         for sid in loaded_skills:
             detail = skill_registry.load_skill_detail(sid)
             if detail.get("status") == "ok":
+                refs_text = "\n\n".join(
+                    f"### 参考附件 `{rname}`\n{rbody}"
+                    for rname, rbody in (detail.get("references") or {}).items()
+                )
                 sys_prompt += (
                     f"\n\n## 已激活技能规程：`{sid}`\n"
                     f"配套脚本路径：{json.dumps(detail['scripts'], ensure_ascii=False)}\n"
                     f"{detail['instructions']}"
+                    + (f"\n\n{refs_text}" if refs_text else "")
                 )
 
         agent = BoundedReActAgent(
@@ -375,6 +380,20 @@ async def run_orchestrator_turn(
         except ModelOutputTruncatedError as exc:
             final_text = str(exc)
             status = "paused"
+        except Exception as exc:
+            # 对模型 API 余额耗尽 (402)、鉴权失效 (401) 或限流 (429) 执行优雅暂停保护，完整保留已落盘成果与检查点。
+            status_code = getattr(exc, "status_code", None)
+            if status_code == 402 or "Insufficient Balance" in str(exc):
+                final_text = (
+                    "⚠️ 模型 API 账户余额不足（HTTP 402 Insufficient Balance），本次推理已安全暂停。"
+                    "当前工作区已生成的章节成果与会话检查点均已完整保存，充值后直接发送“继续”即可从断点无缝续跑。"
+                )
+                status = "paused"
+            elif status_code in (401, 403):
+                final_text = f"⚠️ 模型 API 密钥鉴权失败（HTTP {status_code}），请在右上角设置中检查 API Key 后发送“继续”恢复。"
+                status = "paused"
+            else:
+                raise
         finally:
             state_mgr.save(str(source_dir), agent.memory, loaded_skills, latest_steps)
 

@@ -110,26 +110,28 @@ class M4WordAndChartsTests(unittest.TestCase):
             self.assertIn("工期超限矛盾", all_err_msgs)
             self.assertIn("暗标红线拦截", all_err_msgs)
 
-            # 3. 修复违规项并补齐第2章（包含显式横向分节甘特图 + 9列宽表格自动横排验证）
+            # 3. 修复违规项并补齐第2章（包含显式横向分节甘特图 + 9列宽表格自动横排验证，同时满足青天规范）
             (ws / "drafts" / "01-overview.md").write_text(
                 "# 第1章 总体施工部署与工艺体系\n\n"
+                "## 1.1 工程目标与规范控制\n\n"
                 "本项目严格响应招标要求，计划总工期控制在 235 日历天（优于招标要求的 240 日历天上限），"
-                "工程质量满足国家与地方市政道路验收合格标准。项目部实行项目经理责任制，统筹道路、排水、交通、照明与绿化五大专业协同推进。\n\n"
-                "![1-1 项目现场管理组织架构图](assets/org.png)\n\n"
-                "![1-2 雨污水管道安装施工工艺流程图](assets/flow.png)\n",
+                "工程质量满足 CJJ 1-2008 与 GB 50268-2008 验收合格标准（路床压实度≥95%，水稳压实度≥98%）。\n\n"
+                "![图 1-1 项目现场管理组织架构图](assets/org.png)\n\n"
+                "![图 1-2 雨污水管道安装施工工艺流程图](assets/flow.png)\n",
                 encoding="utf-8",
             )
             (ws / "drafts" / "02-schedule.md").write_text(
                 "# 第2章 施工总进度计划与资源配置\n\n"
-                "科学划分四个施工阶段，强化关键线路节点考核，确保雨季及管线迁改交叉作业互不掣肘，"
-                "投入充足挖掘机、摊铺机与压路机设备保障总工期 235 日历天刚性兑现。\n\n"
+                "## 2.1 阶段划分与产能匹配验算\n\n"
+                "按 JGJ 46-2005 与 DB34/T 5040 规范组织四个施工阶段，沥青摊铺日均产能 2600 m²/d（单机台班产能 1400 m²/台班 × 2 台），"
+                "保障总工期 235 日历天（D1—D235）刚性兑现。\n\n"
                 "表 2-1 主要施工机械设备分阶段进场配置宽表\n\n"
                 "| 序号 | 设备名称 | 规格型号 | 额定功率 | 数量 | 道路阶段 | 排水阶段 | 照明阶段 | 检修状态 |\n"
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
                 "| 1 | 沥青摊铺机 | ABG8620 | 190kW | 2台 | 主力投入 | 备用 | 退场 | 完好已检 |\n"
                 "| 2 | 双钢轮压路机 | HD138 | 118kW | 3台 | 主力投入 | 沟槽回填 | 备用 | 完好已检 |\n\n"
                 "<!-- page: landscape -->\n\n"
-                "![2-1 延锋地块东侧规划支路240日历天总进度横道图](assets/gantt.png)\n\n"
+                "![图 2-1 延锋地块东侧规划支路240日历天总进度横道图](assets/gantt.png)\n\n"
                 "<!-- page: portrait -->\n\n"
                 "横道图后自动切回标准竖向 A4 页面编写工期纠偏保障措施，确保雨季施工和节假日材料储备充足。\n",
                 encoding="utf-8",
@@ -140,6 +142,32 @@ class M4WordAndChartsTests(unittest.TestCase):
                 args=["--drafts-dir", "drafts", "--min-chars", "60", "--blind"],
             )
             self.assertEqual(good_verify["status"], "succeeded", good_verify["stdout"])
+
+            # 3.5 模拟青天质检官出具 ≥90 分评审报告并签发准入证后，方可解锁暗标 Word 编译
+            (ws / "03-qingtian-review.md").write_text(
+                "# 青天评标质检报告\n\n```json\n"
+                + json.dumps({
+                    "inspector": "hefei-qingtian-v1",
+                    "scores": {
+                        "completeness": 29.0,
+                        "specificity": 23.5,
+                        "compliance": 19.0,
+                        "feasibility": 14.0,
+                        "normativity": 9.5,
+                    },
+                    "total_score": 95.0,
+                    "verdict": "PASS",
+                    "blocking_defects": [],
+                    "chapter_rework": [],
+                }, ensure_ascii=False)
+                + "\n```\n",
+                encoding="utf-8",
+            )
+            cert_res = exec_tool.run_python(
+                script_path=scripts["qingtian_inspect.py"],
+                args=["--mode", "certify", "--drafts-dir", "drafts", "--blind"],
+            )
+            self.assertEqual(cert_res["status"], "succeeded", cert_res["stdout"])
 
             # 4. 编译输出严格暗标版 .docx 并验证存在横向分节、纯黑无页眉且通过成品审计
             compile_res = exec_tool.run_python(
