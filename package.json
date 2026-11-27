@@ -91,7 +91,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://your-server-domain.com/mayi-updates/"
+        "url": "http://124.221.239.20:8090/mayi-updates/"
       }
     ],
     "win": {
